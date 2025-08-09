@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Immotools – 6‑Spalten Kalkulation (Fix)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+:root{
+  --bg:#0f1420; --panel:#131a27; --panel2:#0f172a; --ink:#e7ebf1; --muted:#9aa6b8;
+  --line:#1e2635; --accent:#00c2a8; --good:#22c55e; --bad:#ef4444; --warn:#f59e0b; --heading:#f0f4fb; --pill:#1a2333;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;background:var(--bg);color:var(--ink)}
+a{color:var(--accent);text-decoration:none}
+.appbar{position:sticky;top:0;background:rgba(19,26,39,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);z-index:20}
+.appbar .row{display:flex;align-items:center;gap:10px;padding:14px 16px}
+.brand{font-weight:800}
+.tabs{display:flex;gap:8px;margin-left:auto}
+.tab{padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:var(--pill);color:var(--ink);font-weight:700;font-size:12px;cursor:pointer}
+.tab.active{background:var(--accent);color:#022923;border-color:transparent}
+.page{display:none}
+.page.active{display:block}
+.container{max-width:2000px;margin:0 auto;padding:16px}
+.grid{display:grid;grid-template-columns:repeat(6,minmax(300px,1fr));gap:16px;align-items:start}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px;min-width:0}
+.panel h3{margin:0 0 8px 0;font-size:13px;letter-spacing:.3px;color:var(--heading);text-transform:uppercase}
+.section{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:12px;min-width:0}
+.section h4{margin:0 0 6px 0;font-size:13px;color:var(--heading);display:flex;align-items:center;gap:6px}
+.table{width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed}
+.table col:first-child{width:68%}
+.table col:last-child{width:32%}
+.table th,.table td{padding:6px;border-bottom:1px solid var(--line);vertical-align:middle}
+.table th{color:var(--muted);font-weight:600;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.table td.val{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.kpi{display:flex;align-items:center;justify-content:space-between;background:var(--pill);border:1px solid var(--line);padding:10px;border-radius:10px;margin-top:6px}
+.kpi .label{color:var(--muted);font-size:12px}
+.kpi .value{font-weight:800}
+input[type="number"], input[type="text"]{width:120px;background:#0d1422;border:1px solid var(--line);color:var(--ink);padding:6px 8px;border-radius:8px}
+input.wide{width:240px}
+.chk-inline{display:inline-flex;align-items:center;gap:6px;margin-left:8px;font-size:12px;color:var(--muted)}
+.hr{border-top:1px dashed var(--line);margin:8px 0}
+.small{font-size:12px;color:var(--muted)}
+.tooltip{position:relative;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#203048;color:#bcd;cursor:help;font-size:11px}
+.tooltip:hover .tip{opacity:1;transform:translateY(0)}
+.tip{position:absolute;left:0;top:22px;z-index:30;background:#0b1324;border:1px solid var(--line);padding:10px;border-radius:8px;max-width:360px;opacity:0;transform:translateY(-4px);transition:all .2s ease;color:#cfe}
+/* Responsive collapse */
+@media(max-width:1700px){.grid{grid-template-columns:repeat(4,minmax(300px,1fr))}}
+@media(max-width:1200px){.grid{grid-template-columns:repeat(2,minmax(300px,1fr))}}
+@media(max-width:700px){.grid{grid-template-columns:1fr}}
+.chartwrap{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px}
+</style>
+</head>
+<body>
+<div class="appbar">
+  <div class="row">
+    <div class="brand">🏠 Immotools – Kalkulation</div>
+    <div class="tabs">
+      <div class="tab active" data-tab="cockpit">Cockpit</div>
+      <div class="tab" data-tab="diagramme">Diagramme</div>
+    </div>
+  </div>
+</div>
+
+<!-- Cockpit -->
+<div class="page active" id="page-cockpit">
+  <div class="container">
+    <div class="grid">
+      <!-- 1: Objekt & Investition -->
+      <div class="panel">
+        <h3>Objekt und Kaufdatum</h3>
+        <div class="section">
+          <table class="table">
+            <col><col>
+            <tr><th>Adresse</th><td class="val"><input id="addr" class="wide" type="text" value="Musterstr. 11, 12345 Musterstadt"></td></tr>
+            <tr><th>Kaufdatum</th><td class="val"><input id="date" type="text" value="01.01.24"></td></tr>
+            <tr><th>Wohnfläche</th><td class="val"><input id="area" type="number" value="95"> m²</td></tr>
+            <tr><th>Stellplätze</th><td class="val"><input id="slots" type="number" value="1"></td></tr>
+          </table>
+        </div>
+        <div class="section">
+          <h4>Kaufpreis und KNK</h4>
+          <table class="table">
+            <col><col>
+            <tr><th>Kaufpreis</th><td class="val"><input id="price" type="number" value="175000"> €</td></tr>
+            <tr><th>pro m²</th><td class="val" id="priceSqm">–</td></tr>
+            <tr><th>Makler</th><td class="val"><input id="fee" type="number" value="0"> %</td></tr>
+            <tr><th>Notar</th><td class="val"><input id="notary" type="number" value="1.5"> %</td></tr>
+            <tr><th>Grundbuch Amt</th><td class="val"><input id="landreg" type="number" value="0.5"> %</td></tr>
+            <tr><th>Grunderwerbsteuer</th><td class="val"><input id="taxRE" type="number" value="5"> %</td></tr>
+            <tr><th>Sonstige</th><td class="val"><input id="miscAcq" type="number" value="0"> %</td></tr>
+            <tr><th>Summe</th><td class="val" id="knkSum">–</td></tr>
+          </table>
+          <div class="kpi"><div class="label">Gesamterwerb</div><div class="value" id="totalAcq">–</div></div>
+        </div>
+        <div class="section">
+          <h4>Anfängliche Investitionen</h4>
+          <table class="table">
+            <col><col>
+            <tr>
+              <th>Küche</th>
+              <td class="val">
+                <input id="kitchen" type="number" value="2500"> €
+                <label class="chk-inline"><input id="actKitchen" type="checkbox" checked> aktivieren</label>
+              </td>
+            </tr>
+            <tr>
+              <th>Sonstiges</th>
+              <td class="val">
+                <input id="capexOther" type="number" value="9000"> €
+                <label class="chk-inline"><input id="actOther" type="checkbox" checked> aktivieren</label>
+              </td>
+            </tr>
+            <tr><th>Summe</th><td class="val" id="capexSum">–</td></tr>
+            <tr>
+              <th>15% Grenze <span class="tooltip">?<span class="tip">Wenn Investitionen in den ersten 3 Jahren über diesem Wert liegen, sind sie anschaffungsnahe Herstellungskosten (langfristig abschreiben). Formel: 0,15 × Gebäudeanteil × (Kaufpreis + KNK) × 1,19.</span></span></th>
+              <td class="val" id="limit15">–</td>
+            </tr>
+            <tr><th>Neuer Wert (KP + KNK)</th><td class="val" id="newValue">–</td></tr>
+          </table>
+          <div class="kpi"><div class="label">Gesamtinvestitionskosten</div><div class="value" id="totalInvest">–</div></div>
+        </div>
+      </div>
+
+      <!-- 2: Miete, Steuern, Rücklagen -->
+      <div class="panel">
+        <h3>Miete, Steuern, Rücklagen</h3>
+        <div class="section">
+          <h4>Soll-Miete pro Monat</h4>
+          <table class="table">
+            <col><col>
+            <tr><th>Kaltmiete €/m²</th><td class="val"><input id="rentSqm" type="number" value="11.1"> €</td></tr>
+            <tr><th>Kaltmiete gesamt</th><td class="val" id="coldRent">–</td></tr>
+            <tr><th>+ Stellplätze</th><td class="val"><input id="rentSlots" type="number" value="45"> €</td></tr>
+            <tr><th>+ Sonstiges</th><td class="val"><input id="rentOther" type="number" value="0"> €</td></tr>
+            <tr><th>+ Umlagefähige Kosten</th><td class="val"><input id="umlagefaehig" type="number" value="399"> €</td></tr>
+            <tr><th>= Warmmiete</th><td class="val" id="warmRent">–</td></tr>
+          </table>
+        </div>
+
+        <div class="section">
+          <h4>Steuern <span class="tooltip">?<span class="tip"><b>AfA Satz</b>: jährlicher Abschreibungssatz. Wohnen nach 31.12.1924: 2,0 %, davor 2,5 %.</span></span></h4>
+          <table class="table">
+            <col><col>
+            <tr><th>AfA Satz</th><td class="val"><input id="afaRate" type="number" value="2"> % p.a.</td></tr>
+            <tr><th>Anteil Gebäude am Kaufpreis</th><td class="val"><input id="buildingShare" type="number" value="75"> %</td></tr>
+            <tr>
+              <th>AfA‑Basis <span class="tooltip">?<span class="tip">Basis langfristige Abschreibung: Gebäudeanteil × (Kaufpreis + KNK) + aktivierte Investitionen.</span></span></th>
+              <td class="val" id="afaBase">–</td>
+            </tr>
+            <tr><th>AfA pro Monat</th><td class="val" id="afaMonth">–</td></tr>
+            <tr><th>persönlicher Grenzsteuersatz</th><td class="val"><input id="taxRate" type="number" value="26"> %</td></tr>
+          </table>
+        </div>
+
+        <div class="section">
+          <h4>Rücklagen</h4>
+          <table class="table">
+            <col><col>
+            <tr><th>Kalkulatorischer Mietausfall</th><td class="val"><input id="vacancyPct" type="number" value="3"> %</td></tr>
+            <tr><th>Eigene Instandh.-Rückl. (€/m²·a)</th><td class="val"><input id="maintPerSqmYear" type="number" value="10"> €</td></tr>
+            <tr><th>Empfohlen (Info)</th><td class="val" class="small">8–15 €/m²·a</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- 3: Bewirtschaftung -->
+      <div class="panel">
+        <h3>Bewirtschaftungskosten</h3>
+        <div class="section">
+          <h4>Bewirtschaftung pro Monat</h4>
+          <table class="table">
+            <col><col>
+            <tr><th>Umlagefähig (Summe)</th><td class="val" id="bwuUml">–</td></tr>
+            <tr><th>Nicht umlagefähig</th><td class="val"><input id="nonApportion" type="number" value="173"> €</td></tr>
+            <tr><th>% der Nettokaltmiete</th><td class="val" id="bwuPct">–</td></tr>
+            <tr><th>Insgesamt</th><td class="val" id="bwuSum">–</td></tr>
+          </table>
+        </div>
+
+        <div class="section">
+          <h4>Hausgeld</h4>
+          <table class="table">
+            <col><col>
+            <tr><th>Hausgeld insgesamt</th><td class="val"><input id="hausgeld" type="number" value="439"> €</td></tr>
+          </table>
+        </div>
+
+        <div class="section">
+          <h4>Umlagefähige Kosten</h4>
+          <table class="table">
+            <col><col>
+            <tr><th>Hausgeld (umlagefähiger Teil)</th><td class="val"><input id="hgUml" type="number" value="390"> €</td></tr>
+            <tr><th>Grundsteuer</th><td class="val"><input id="grundsteuer" type="number" value="9"> €</td></tr>
+            <tr><th>Sonstiges</th><td class="val"><input id="umlagSonst" type="number" value="0"> €</td></tr>
+            <tr><th>Summe</th><td class="val" id="umlagSum">–</td></tr>
+          </table>
+        </div>
+
+        <div class="section">
+          <h4>Nicht umlagefähige Kosten</h4>
+          <table class="table">
+            <col><col>
+            <tr><th>Hausgeld (nicht umlagef.)</th><td class="val"><input id="hgNicht" type="number" value="49"> €</td></tr>
+            <tr><th>davon WEG Rücklage</th><td class="val"><input id="weg" type="number" value="23"> €</td></tr>
+            <tr><th>Eigene Instandhaltungsrücklage</th><td class="val" id="eigeneRueckl">–</td></tr>
+            <tr><th>Kalk. Mietausfall</th><td class="val" id="leerstandEuro">–</td></tr>
+            <tr><th>Sonstiges</th><td class="val"><input id="nichtUmlSonst" type="number" value="0"> €</td></tr>
+            <tr><th>Summe</th><td class="val" id="nichtUmlSum">–</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- 4: Finanzierung -->
+      <div class="panel">
+        <h3>Finanzierung</h3>
+        <div class="section">
+          <h4>Gesamt-Finanzierung</h4>
+          <table class="table">
+            <col><col>
+            <tr><th>Eigenkapital %</th><td class="val"><input id="equityPct" type="number" value="13"> %</td></tr>
+            <tr><th>Zinssatz gewichtet</th><td class="val"><input id="interestPct" type="number" value="3.69"> %</td></tr>
+            <tr><th>Anfängliche Tilgung gewichtet</th><td class="val"><input id="repaymentPct" type="number" value="2.00"> %</td></tr>
+            <tr><th>Darlehenssumme % Kaufpreis</th><td class="val" id="loanPct">–</td></tr>
+            <tr><th>Darlehenssumme</th><td class="val" id="loan">–</td></tr>
+            <tr><th>Eigenkapital</th><td class="val" id="equityAbs">–</td></tr>
+            <tr><th>Kapit. Dienst pro Monat</th><td class="val" id="annuity">–</td></tr>
+          </table>
+        </div>
+
+        <div class="section">
+          <h4>Darlehen I</h4>
+          <table class="table">
+            <col><col>
+            <tr><th>Darlehenssumme</th><td class="val" id="loanI">–</td></tr>
+            <tr><th>Zinssatz</th><td class="val" id="iRate">–</td></tr>
+            <tr><th>Anfängliche Tilgung</th><td class="val" id="iRepay">–</td></tr>
+            <tr><th>Kapit. Dienst pro Monat</th><td class="val" id="iAnnuity">–</td></tr>
+            <tr><th>Jahr der Volltilgung</th><td class="val" id="yearFull">–</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- 5: Kennzahlen heute -->
+      <div class="panel">
+        <h3>Kennzahlen heute</h3>
+        <div class="section">
+          <h4>Vermögenszuwachs</h4>
+          <table class="table"><col><col>
+            <tr><th>Vermögenszuwachs p.a.</th><td class="val" id="wealthPa">–</td></tr>
+            <tr><th>ohne Wertsteigerung</th><td class="val" id="wealthNoAppr">–</td></tr>
+          </table>
+        </div>
+        <div class="section">
+          <h4>Miete und Mietrendite</h4>
+          <table class="table"><col><col>
+            <tr><th>Nettokaltmiete pro Jahr</th><td class="val" id="coldRentYear">–</td></tr>
+            <tr><th>Bruttomietrendite</th><td class="val" id="grossYield">–</td></tr>
+            <tr><th>Faktor</th><td class="val" id="faktor">–</td></tr>
+            <tr><th>Nettomietrendite</th><td class="val" id="netYield">–</td></tr>
+          </table>
+        </div>
+        <div class="section">
+          <h4>Cashflow pro Monat (Überschuss)</h4>
+          <table class="table"><col><col>
+            <tr><th>Warmmiete</th><td class="val" id="cfWarm">–</td></tr>
+            <tr><th>- Bewirtschaftungskosten</th><td class="val" id="cfBwu">–</td></tr>
+            <tr><th>- Zinsen</th><td class="val" id="cfInterest">–</td></tr>
+            <tr><th>- Tilgung</th><td class="val" id="cfRepay">–</td></tr>
+            <tr><th>= Cashflow operativ</th><td class="val" id="cfOper">–</td></tr>
+            <tr><th>- Steuern</th><td class="val" id="cfTax">–</td></tr>
+            <tr><th>= Cashflow nach Steuern</th><td class="val" id="cfAfterTax">–</td></tr>
+          </table>
+        </div>
+        <div class="section">
+          <h4>Nebenrechnung Steuer (Monatsbasis)</h4>
+          <table class="table"><col><col>
+            <tr><th>Warmmiete</th><td class="val" id="taxWarm">–</td></tr>
+            <tr><th>- Bewirt.-Kosten ohne eigene Rückl.</th><td class="val" id="taxBwu">–</td></tr>
+            <tr><th>- Zinsen</th><td class="val" id="taxInterest">–</td></tr>
+            <tr><th>- Abschreibung (AfA)</th><td class="val" id="taxAfa">–</td></tr>
+            <tr><th>= zu versteuernder Cashflow</th><td class="val" id="taxable">–</td></tr>
+            <tr><th>* persönlicher Grenzsteuersatz</th><td class="val" id="taxRateShow">–</td></tr>
+            <tr><th>= Steuern</th><td class="val" id="taxDue">–</td></tr>
+          </table>
+        </div>
+        <div class="section">
+          <h4>Eigenkapitalrendite</h4>
+          <table class="table"><col><col>
+            <tr><th>Eigenkapitalrendite p.a.</th><td class="val" id="roePa">–</td></tr>
+            <tr><th>ohne Wertsteigerung</th><td class="val" id="roeNoAppr">–</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- 6: Zukunft & Risiko -->
+      <div class="panel">
+        <h3>Kennzahlen in der Zukunft</h3>
+        <div class="section">
+          <h4>Betrachtungszeitpunkt</h4>
+          <table class="table"><col><col>
+            <tr><th>Hochrechnung für das Jahr</th><td class="val" id="yearAt">–</td></tr>
+            <tr><th>entspricht Jahre nach dem Kauf</th><td class="val"><input id="yearsFwd" type="number" value="17"></td></tr>
+          </table>
+        </div>
+        <div class="section">
+          <h4>Miete und Wert</h4>
+          <table class="table"><col><col>
+            <tr><th>Nettokaltmiete pro Jahr</th><td class="val" id="fwdRentYear">–</td></tr>
+            <tr><th>pro qm und Monat</th><td class="val" id="fwdPerSqm">–</td></tr>
+            <tr><th>Wert der Immobilie (Jahresende)</th><td class="val" id="fwdValue">–</td></tr>
+            <tr><th>pro qm</th><td class="val" id="fwdPerSqmValue">–</td></tr>
+          </table>
+        </div>
+        <div class="section">
+          <h4>Cashflow pro Monat (Zukunft)</h4>
+          <table class="table"><col><col>
+            <tr><th>Warmmiete</th><td class="val" id="fwdWarm">–</td></tr>
+            <tr><th>- Bewirtschaftungskosten</th><td class="val" id="fwdBwu">–</td></tr>
+            <tr><th>- Zinsen</th><td class="val" id="fwdInterest">–</td></tr>
+            <tr><th>- Tilgung</th><td class="val" id="fwdRepay">–</td></tr>
+            <tr><th>= Cashflow operativ</th><td class="val" id="fwdOper">–</td></tr>
+            <tr><th>- Steuern</th><td class="val" id="fwdTax">–</td></tr>
+            <tr><th>= Cashflow nach Steuern</th><td class="val" id="fwdAfterTax">–</td></tr>
+          </table>
+        </div>
+        <div class="section">
+          <h4>Zinsänderungsrisiko</h4>
+          <table class="table"><col><col>
+            <tr><th>Monatl. Zinsen für CF 0 nach Steuern</th><td class="val" id="riskIntNeeded">–</td></tr>
+            <tr><th>= Zinssatz gewichtet (p.a.)</th><td class="val" id="riskRate">–</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="hr"></div>
+    <div class="small">Layout fix: feste 2‑Spalten-Tabellen, Checkboxes inline. Diagramm im Tab „Diagramme“.</div>
+  </div>
+</div>
+
+<!-- Diagramme -->
+<div class="page" id="page-diagramme">
+  <div class="container">
+    <div class="chartwrap">
+      <h3 style="margin:0 0 10px 0">Zins- & Tilgungsverlauf + Restschuld</h3>
+      <canvas id="amortChart"></canvas>
+      <div class="small" style="margin-top:8px">Annuität über 30 Jahre; Restschuld-Linie. Werte aus „Finanzierung“.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+// Tabs
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    const key = t.dataset.tab;
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    document.getElementById('page-'+key).classList.add('active');
+    if(key==='diagramme'){ setTimeout(drawAmort,0); } // ensure canvas is visible
+  });
+});
+
+function eur(n, d=0){ return (isFinite(n)?n:0).toLocaleString('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:d}); }
+function pct(n, d=1){ return (isFinite(n)?n:0).toFixed(d)+' %'; }
+function yearNow(){ return new Date().getFullYear(); }
+
+function read(){
+  return {
+    area:+$('area').value||0, price:+$('price').value||0,
+    fee:+$('fee').value||0, notary:+$('notary').value||0, landreg:+$('landreg').value||0, taxRE:+$('taxRE').value||0, miscAcq:+$('miscAcq').value||0,
+    kitchen:+$('kitchen').value||0, capexOther:+$('capexOther').value||0, actKitchen:$('actKitchen').checked, actOther:$('actOther').checked,
+    rentSqm:+$('rentSqm').value||0, rentSlots:+$('rentSlots').value||0, rentOther:+$('rentOther').value||0, umlagefaehig:+$('umlagefaehig').value||0,
+    afaRate:+$('afaRate').value||0, buildingShare:+$('buildingShare').value||0, taxRate:+$('taxRate').value||0,
+    vacancyPct:+$('vacancyPct').value||0, maintPerSqmYear:+$('maintPerSqmYear').value||0,
+    nonApportion:+$('nonApportion').value||0, hausgeld:+$('hausgeld').value||0, hgUml:+$('hgUml').value||0, grundsteuer:+$('grundsteuer').value||0, umlagSonst:+$('umlagSonst').value||0,
+    hgNicht:+$('hgNicht').value||0, weg:+$('weg').value||0, nichtUmlSonst:+$('nichtUmlSonst').value||0,
+    equityPct:+$('equityPct').value||0, interestPct:+$('interestPct').value||0, repaymentPct:+$('repaymentPct').value||0,
+    yearsFwd:+$('yearsFwd').value||0, rentGrowth:7, costGrowth:5, valueGrowth:2
+  };
+}
+
+function calc(p){
+  const priceSqm = p.area>0 ? p.price/p.area : 0;
+  const knkPct = (p.fee+p.notary+p.landreg+p.taxRE+p.miscAcq)/100;
+  const knkSum = p.price*knkPct;
+  const totalAcq = p.price + knkSum;
+  const capexSum = p.kitchen + p.capexOther;
+  const totalInvest = totalAcq + capexSum;
+
+  const coldRentBase = p.area*p.rentSqm;
+  const coldRentWithExtras = coldRentBase + p.rentSlots + p.rentOther;
+  const warmRent = coldRentWithExtras + p.umlagefaehig;
+
+  const umlagSum = p.hgUml + p.grundsteuer + p.umlagSonst;
+  const eigeneRueckl = (p.area*p.maintPerSqmYear)/12;
+  const leerstandEuro = coldRentWithExtras*(p.vacancyPct/100);
+  const nichtUmlSum = p.hgNicht + p.weg + eigeneRueckl + leerstandEuro + p.nichtUmlSonst;
+  const bwuSum = umlagSum + p.nonApportion + nichtUmlSum;
+  const bwuPct = coldRentWithExtras>0 ? (bwuSum/coldRentWithExtras*100) : 0;
+
+  // Financing
+  const equityAbs = totalAcq * (p.equityPct/100);
+  const loan = Math.max(totalAcq - equityAbs,0);
+  const annuity = loan * ((p.interestPct + p.repaymentPct)/100/12);
+  const interestMonth = loan * (p.interestPct/100/12);
+  const repayMonth = annuity - interestMonth;
+
+  const coldYear = coldRentWithExtras*12;
+  const grossYield = p.price>0 ? (coldYear/p.price*100) : 0;
+  const faktor = coldYear>0 ? (p.price/coldYear) : 0;
+  const netYield = totalInvest>0 ? ((coldYear - (nichtUmlSum + p.nonApportion)*12)/totalInvest*100) : 0;
+
+  // AfA-Basis
+  const activated = (p.actKitchen?p.kitchen:0) + (p.actOther?p.capexOther:0);
+  const afaBase = (p.price + knkSum) * (p.buildingShare/100) + activated;
+  const afaMonth = afaBase * (p.afaRate/100) / 12;
+
+  const bwuForTax = umlagSum + p.nonApportion + p.hgNicht + p.weg + p.nichtUmlSonst;
+  const taxable = Math.max(0, warmRent - bwuForTax - interestMonth - afaMonth);
+  const taxMonth = taxable * (p.taxRate/100);
+
+  const cfOper = warmRent - bwuSum - (interestMonth + repayMonth);
+  const cfAfterTax = cfOper - taxMonth + repayMonth;
+
+  // Wealth (simplified p.a.)
+  const principalYear = repayMonth*12;
+  const apprYear = (p.price + knkSum) * (2/100);
+  const wealthPa = principalYear + apprYear;
+  const wealthNoAppr = principalYear;
+
+  // Future (uses defaults above)
+  const yearAt = yearNow() + p.yearsFwd;
+
+  // 15%-Grenze
+  const limit15 = 0.15 * (p.buildingShare/100) * (p.price + knkSum) * 1.19;
+
+  // Risk CF after tax = 0
+  const tRate = p.taxRate/100;
+  const A = warmRent - bwuSum;
+  const B = warmRent - bwuForTax - afaMonth;
+  const Ineeded = (A - tRate*B) / (1 - tRate);
+  const riskRatePa = loan>0 ? (Ineeded*12/loan*100) : 0;
+
+  // Full amortization year
+  let nMonths = 0;
+  const im = p.interestPct/100/12;
+  if(im>0 && annuity>im*loan){
+    nMonths = Math.log(annuity/(annuity-im*loan))/Math.log(1+im);
+  }
+  const fullYear = Math.floor(yearNow() + nMonths/12);
+
+  return {priceSqm,knkSum,totalAcq,capexSum,totalInvest,limit15,newValue:totalAcq,
+    coldRentWithExtras,warmRent,umlagSum,eigeneRueckl,leerstandEuro,nichtUmlSum,bwuSum,bwuPct,
+    loan,equityAbs,annuity,interestMonth,repayMonth,
+    coldYear,grossYield,faktor,netYield,
+    afaBase,afaMonth,taxMonth,taxable,bwuForTax,
+    cfOper,cfAfterTax,wealthPa,wealthNoAppr,yearAt,
+    Ineeded,riskRatePa,fullYear};
+}
+
+function render(){
+  const p = read();
+  const m = calc(p);
+
+  // 1
+  $('priceSqm').textContent = eur(m.priceSqm,0);
+  $('knkSum').textContent = eur(m.knkSum);
+  $('totalAcq').textContent = eur(m.totalAcq);
+  $('capexSum').textContent = eur(m.capexSum);
+  $('limit15').textContent = eur(m.limit15);
+  $('newValue').textContent = eur(m.newValue);
+  $('totalInvest').textContent = eur(m.totalInvest);
+
+  // 2
+  const baseCold = p.area*p.rentSqm;
+  $('coldRent').textContent = eur(baseCold);
+  $('warmRent').textContent = eur(m.warmRent);
+  $('afaBase').textContent = eur(m.afaBase);
+  $('afaMonth').textContent = eur(m.afaMonth);
+
+  // 3
+  $('bwuUml').textContent = eur(m.umlagSum);
+  $('umlagSum').textContent = eur(m.umlagSum);
+  $('eigeneRueckl').textContent = eur(m.eigeneRueckl);
+  $('leerstandEuro').textContent = eur(m.leerstandEuro);
+  $('nichtUmlSum').textContent = eur(m.nichtUmlSum);
+  $('bwuSum').textContent = eur(m.bwuSum);
+  $('bwuPct').textContent = pct(m.bwuPct);
+
+  // 4
+  $('loanPct').textContent = pct(m.loan/(p.price||1)*100,1);
+  $('loan').textContent = eur(m.loan);
+  $('equityAbs').textContent = eur(m.equityAbs);
+  $('annuity').textContent = eur(m.annuity);
+  $('loanI').textContent = eur(m.loan);
+  $('iRate').textContent = p.interestPct.toFixed(2)+' %';
+  $('iRepay').textContent = p.repaymentPct.toFixed(2)+' %';
+  $('iAnnuity').textContent = eur(m.annuity);
+  $('yearFull').textContent = m.fullYear;
+
+  // 5
+  $('wealthPa').textContent = eur(m.wealthPa);
+  $('wealthNoAppr').textContent = eur(m.wealthNoAppr);
+  $('coldRentYear').textContent = eur(m.coldYear);
+  $('grossYield').textContent = pct(m.grossYield);
+  $('faktor').textContent = (isFinite(m.faktor)?m.faktor:0).toFixed(1);
+  $('netYield').textContent = pct(m.netYield);
+  $('cfWarm').textContent = eur(m.warmRent);
+  $('cfBwu').textContent = eur(m.bwuSum);
+  $('cfInterest').textContent = eur(m.interestMonth);
+  $('cfRepay').textContent = eur(m.repayMonth);
+  $('cfOper').textContent = eur(m.cfOper);
+  $('cfTax').textContent = eur(m.taxMonth);
+  $('cfAfterTax').textContent = eur(m.cfAfterTax);
+  $('taxWarm').textContent = eur(m.warmRent);
+  $('taxBwu').textContent = eur(m.bwuForTax);
+  $('taxInterest').textContent = eur(m.interestMonth);
+  $('taxAfa').textContent = eur(m.afaMonth);
+  $('taxable').textContent = eur(m.taxable);
+  $('taxRateShow').textContent = pct(p.taxRate);
+
+  // 6
+  $('yearAt').textContent = m.yearAt;
+  $('fwdRentYear').textContent = eur(m.coldYear * Math.pow(1+0.07, p.yearsFwd));
+  $('fwdPerSqm').textContent = ((m.coldYear * Math.pow(1+0.07, p.yearsFwd)/12)/(p.area||1)).toFixed(1)+' €/m²·Monat';
+  const valueFwd = (p.price + m.knkSum) * Math.pow(1+0.02, p.yearsFwd);
+  $('fwdValue').textContent = eur(valueFwd);
+  $('fwdPerSqmValue').textContent = ((valueFwd/(p.area||1))||0).toFixed(0)+' €/m²';
+  const bwuFwd = m.bwuSum * Math.pow(1+0.05, p.yearsFwd);
+  $('fwdBwu').textContent = eur(bwuFwd);
+  const warmFwd = (m.coldYear * Math.pow(1+0.07,p.yearsFwd)/12) + p.umlagefaehig;
+  $('fwdWarm').textContent = eur(warmFwd);
+  const interestFwd = m.interestMonth, repayFwd = m.repayMonth;
+  $('fwdInterest').textContent = eur(interestFwd);
+  $('fwdRepay').textContent = eur(repayFwd);
+  const operFwd = warmFwd - bwuFwd - interestFwd - repayFwd;
+  $('fwdOper').textContent = eur(operFwd);
+  const taxableFwd = Math.max(0, warmFwd - (m.bwuForTax*Math.pow(1+0.05,p.yearsFwd)) - interestFwd - m.afaMonth);
+  const taxFwd = taxableFwd * (p.taxRate/100);
+  $('fwdTax').textContent = eur(taxFwd);
+  $('fwdAfterTax').textContent = eur(operFwd - taxFwd + repayFwd);
+  $('riskIntNeeded').textContent = eur(m.Ineeded);
+  $('riskRate').textContent = pct(m.riskRatePa);
+
+  if(document.getElementById('page-diagramme').classList.contains('active')){
+    setTimeout(drawAmort,0);
+  }
+}
+
+function drawAmort(){
+  const p = read();
+  const knkSum = p.price*(p.fee+p.notary+p.landreg+p.taxRE+p.miscAcq)/100;
+  const loan = (p.price+knkSum) - (p.price+knkSum)*(p.equityPct/100);
+  const mthRate = p.interestPct/100/12;
+  const ann = loan * ((p.interestPct + p.repaymentPct)/100/12);
+  const months = 30*12;
+  let balance = loan;
+  const labels=[], zins=[], tilg=[], rest=[];
+  for(let k=1;k<=months;k++){
+    const interest = balance*mthRate;
+    const repay = Math.min(ann - interest, balance);
+    balance = Math.max(0, balance - repay);
+    if(k%12===0){
+      labels.push('J'+(k/12));
+      zins.push(interest*12);
+      tilg.push(repay*12);
+      rest.push(balance);
+    }
+  }
+  const ctx = document.getElementById('amortChart').getContext('2d');
+  if(window.amortChart) window.amortChart.destroy();
+  window.amortChart = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        {label:'Zinsen/Jahr', data:zins, yAxisID:'y', stack:'cf'},
+        {label:'Tilgung/Jahr', data:tilg, yAxisID:'y', stack:'cf'},
+        {label:'Restschuld', type:'line', data:rest, yAxisID:'y1'}
+      ]
+    },
+    options:{plugins:{legend:{position:'top'}}, scales:{y:{beginAtZero:true}, y1:{position:'right',beginAtZero:true}}}
+  });
+}
+
+// Bind events correctly
+function bind(){
+  document.querySelectorAll('input').forEach(i=> i.addEventListener('input', render));
+  render();
+}
+window.addEventListener('DOMContentLoaded', bind);
+</script>
+</body>
+</html>
